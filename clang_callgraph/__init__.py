@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
 from pprint import pprint
-from clang.cindex import CursorKind, Index, CompilationDatabase
+from clang.cindex import CursorKind, Index, CompilationDatabase, Config, LibclangError
 from collections import defaultdict
+import os
+import subprocess
 import sys
 import json
 import yaml
@@ -226,7 +228,36 @@ def ask_and_print_callgraph():
         print_callgraph(fun)
 
 
+def find_libclang():
+    try:
+        # Attempt to initialize libclang
+        Config().get_cindex_library()
+        print("libclang is already configured correctly.")
+    except LibclangError as original_error:
+        # List of llvm-config commands to try
+        llvm_configs = ['llvm-config'] + [f"llvm-config-{version}" for version in range(30, 13, -1)]
+
+        for llvm_config in llvm_configs:
+            try:
+                # Check if llvm-config exists
+                subprocess.run([llvm_config, '--version'], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                # Get the libdir using llvm-config
+                libdir = subprocess.check_output([llvm_config, '--libdir']).decode().strip()
+                # Determine the major version from the llvm-config suffix
+                version = llvm_config.split('-')[-1] if '-' in llvm_config else ''
+                libclang_path = os.path.join(libdir, f"libclang-{version}.so.{version}")
+                if os.path.exists(libclang_path):
+                    # Set the libclang library
+                    Config.set_library_file(libclang_path)
+                    return
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                continue
+        # Rethrow the original LibclangError if no suitable libclang is found
+        raise original_error
+
+
 def main():
+    find_libclang()
     if len(sys.argv) < 2:
         print('usage: ' + sys.argv[0] + ' file.cpp|compile_database.json '
               '[extra clang args...]')
