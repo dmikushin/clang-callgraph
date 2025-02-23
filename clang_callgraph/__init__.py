@@ -4,6 +4,7 @@ from pprint import pprint
 from clang.cindex import CursorKind, Index, CompilationDatabase, Config, LibclangError
 from collections import defaultdict
 import os
+import re
 import subprocess
 import sys
 import json
@@ -213,11 +214,23 @@ def print_callgraph(fun):
         print(fun)
         print_calls(fun, list())
     else:
+        try:
+            re.compile(fun)
+            is_valid_regex = True
+        except re.error:
+            is_valid_regex = False
+        
         print('matching:')
-        for f, ff in FULLNAMES.items():
-            if f.startswith(fun):
-                for fff in ff:
-                    print(fff)
+        if is_valid_regex:
+            for f, ff in FULLNAMES.items():
+                if re.match(fun, f):
+                    for fff in ff:
+                        print(fff)
+        else:
+            for f, ff in FULLNAMES.items():
+                if f.startswith(fun):
+                    for fff in ff:
+                        print(fff)
 
 
 def ask_and_print_callgraph():
